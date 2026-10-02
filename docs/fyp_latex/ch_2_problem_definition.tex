@@ -3,15 +3,26 @@
 % ==============================
 
 \chapter{Problem Definition}
+
 % --------------------------------
 % 2.1 Problem Statement
 % --------------------------------
 
 \section{Problem Statement}
 
-The primary problem this project addresses is \textbf{hardware fragmentation} and \textbf{vendor lock-in} in the quantum computing domain. Currently, quantum hardware providers use different underlying technologies (e.g., Superconducting Qubits vs. Trapped Ions), which result in incompatible instruction sets and connectivity graphs. A developer writing code for one platform often cannot run it on another without significant manual refactoring. Furthermore, optimizing a circuit for a specific device's topology is a complex, error-prone task that requires deep knowledge of the hardware. There is a lack of lightweight, educational, and open-source runtimes that demonstrate how to abstract these complexities effectively. This project aims to solve these interoperability challenges by automating the translation process, thereby reducing development time, eliminating vendor dependencies, and lowering the barrier to entry for quantum computing education and research.
+The central barrier holding back quantum software development today is the gap between abstract quantum algorithms and physical hardware constraints. When researchers publish an algorithm like Grover's search or Quantum Phase Estimation, they describe circuits using theoretical gates acting on arbitrary pairs of qubits. In reality, physical quantum processors cannot execute arbitrary multi-qubit interactions.
 
+On superconducting chips, such as those fabricated by IBM and Google, qubits exist as physical lithographic circuits on a wafer. Qubit interactions rely on fixed or tunable microwave resonators that couple only physically adjacent qubits. If an algorithm requires a two-qubit gate (such as CNOT or CZ) between qubit $q_0$ and qubit $q_3$ on a linear chip layout ($q_0 - q_1 - q_2 - q_3$), the hardware cannot physically execute the gate. The physical transmission lines simply do not connect them.
 
+To run this circuit, someone must route the quantum state of $q_0$ across the chip. This requires inserting a cascade of SWAP gates: swapping $q_0$ with $q_1$, then $q_1$ with $q_2$, executing the interaction, and swapping back. Each SWAP operation is costly; on native hardware, a single SWAP decomposes into three consecutive CNOT gates ($CX_{01} CX_{10} CX_{01}$). On NISQ-era processors with two-qubit gate error rates ranging between 0.5\% and 3.0\%, adding just two or three SWAP gates quickly doubles or triples the circuit depth and swamps the true quantum signal with physical decoherence noise.
+
+Currently, developers face two frustrating choices:
+\begin{enumerate}[leftmargin=*]
+    \item Manually re-route circuits by hand for every target chip architecture, which is tedious, prone to indexing mistakes, and fragile across chip revisions.
+    \item Rely on complex, heavyweight commercial toolkits that obscure compiler decisions, require cloud credentials, or tie the developer directly into proprietary hardware ecosystems.
+\end{enumerate}
+
+There is an acute lack of transparent, lightweight, and hardware-agnostic execution runtimes that allow students, researchers, and software engineers to compile and inspect quantum circuits locally without enterprise overhead or cloud lock-in.
 
 % --------------------------------
 % 2.2 Proposed Solution Overview
@@ -19,9 +30,17 @@ The primary problem this project addresses is \textbf{hardware fragmentation} an
 
 \section{Proposed Solution Overview}
 
-The proposed system solves the hardware fragmentation problem by introducing a middleware layer—the Quantum Virtual Machine (QVM). Instead of targeting a specific device, developers write code for the QVM, which follows a three-stage pipeline: (1) \textbf{Ingestion:} The system accepts a high-level circuit (OpenQASM 3.0, 2.0, or JSON) and converts it into a standardized Intermediate Representation (IR). (2) \textbf{Transpilation:} The core engine analyzes the target backend's constraints (native gates and topology), inserts SWAP gates where necessary, and decomposes complex gates into the target's primitive basis gates. (3) \textbf{Execution:} The system either executes the circuit on its internal hybrid simulator (Statevector or MPS) for verification or outputs the compiled circuit for a specific hardware target. This approach ensures that the logic of the algorithm remains preserved while the implementation details are automatically handled by the software, achieving true "Write Once, Run Anywhere" (WORA) functionality.
+To solve this problem, we designed and implemented the \textbf{Quantum Virtual Machine (QVM)}. QVM acts as an intelligent middleware layer positioned between high-level quantum circuit descriptions and arbitrary hardware execution targets.
 
+Instead of writing hardware-specific scripts, developers define their quantum logic using standard formats: OpenQASM 3.0 \cite{cross2022qasm3}, OpenQASM 2.0 \cite{cross2017qasm}, or JSON. QVM processes the circuit through a structured three-stage pipeline:
 
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Ingestion and Normalization:} The parser ingests the input file, validates its grammar, and builds an in-memory Abstract Syntax Tree (AST). It converts declarations and operations into a standardized \texttt{QuantumCircuit} Intermediate Representation (IR). Non-primitive operations (such as Toffoli or multi-controlled gates) are decomposed into target-compatible basis gates.
+    \item \textbf{Topology-Aware Transpilation:} Given a target hardware coupling graph (such as a 5-qubit linear chain, a 2D grid, or custom coupling rules), the transpiler identifies two-qubit operations that violate adjacency constraints. It computes shortest routing paths, evaluates lookahead heuristics (Greedy BFS or SABRE \cite{li2019sabre}), inserts the minimal necessary SWAP gates, and tracks the evolving mapping between logical and physical qubits.
+    \item \textbf{Verification and Execution:} Once compiled, the physical circuit can either be exported back to OpenQASM for external deployment or executed locally on QVM's dual simulation engines: an exact statevector simulator for up to 12 qubits, or an MPS tensor network simulator for larger systems with low entanglement.
+\end{enumerate}
+
+This pipeline decouples the algorithmic logic from the execution backend, realizing true ``Write Once, Run Anywhere'' portability.
 
 % --------------------------------
 % 2.3 Objectives of the Proposed System
@@ -29,25 +48,15 @@ The proposed system solves the hardware fragmentation problem by introducing a m
 
 \section{Objectives of the Proposed System}
 
-The following business objectives guide the development and evaluation of the Quantum Virtual Machine:
+The design and development of QVM was guided by five core engineering objectives:
 
-\vspace{0.3cm}
-
-\textbf{Business Objectives (BO):}
-
-\begin{itemize}
-    \item \textbf{BO-1:} Develop a hardware-agnostic quantum execution runtime that enables developers to write quantum algorithms once and transpile them for different qubit topologies (Linear, Grid) without rewriting code.
-    
-    \item \textbf{BO-2:} Provide educational transparency into the transpilation process, showing users how logical qubits are mapped to physical ones and where SWAP gates are inserted to respect hardware constraints.
-    
-    \item \textbf{BO-3:} Implement a lightweight, standalone runtime suitable for local testing of small-scale quantum algorithms (up to 10-20 qubits) without requiring paid cloud subscriptions or enterprise dependencies.
-    
-    \item \textbf{BO-4:} Ensure interoperability by supporting OpenQASM 2.0 and 3.0 standards, making compiled circuits compatible with IBM quantum processors and other QASM-compliant platforms.
-    
-    \item \textbf{BO-5:} Automate the complex tasks of gate decomposition, qubit mapping, and circuit optimization through a robust transpilation pipeline, reducing manual effort and eliminating the need for deep hardware-specific knowledge.
+\begin{itemize}[leftmargin=*]
+    \item \textbf{BO-1: Hardware-Agnostic Compilation:} Enable developers to write quantum programs once in standard OpenQASM or JSON and automatically compile them to distinct hardware topologies (Linear, 2D Grid, Ring) without modifying the original circuit logic.
+    \item \textbf{BO-2: Compiler Transparency and Pedagogical Clarity:} Expose clear diagnostics and step-by-step intermediate representations showing exactly how logical qubits map to physical qubits, which decomposition rules fired, and where SWAP gates were inserted.
+    \item \textbf{BO-3: Lightweight, Standalone Local Execution:} Provide a fully self-contained runtime under 50~MB that runs on commodity personal computers with zero mandatory cloud accounts, API tokens, or external hardware subscriptions.
+    \item \textbf{BO-4: Standard Interoperability:} Adhere strictly to OpenQASM 2.0 and 3.0 specifications, including classical bit registers, mid-circuit measurement collapse, and conditional branching, ensuring compiled output can be exported directly to other quantum tools.
+    \item \textbf{BO-5: Automated Gate Decomposition and Optimization:} Automate the reduction of high-level unitary operations into elementary one- and two-qubit basis gates, incorporating lookahead heuristics to minimize total circuit depth and SWAP overhead.
 \end{itemize}
-
-
 
 % --------------------------------
 % 2.4 Scope of the System
@@ -55,9 +64,24 @@ The following business objectives guide the development and evaluation of the Qu
 
 \section{Scope of the System}
 
-The scope of this project is to develop a desktop-based Quantum Virtual Machine (QVM) using Python. The system will support the creation, compilation, and simulation of quantum circuits with a maximum capacity of 10-20 qubits depending on the simulation backend. The core functionality centers on a "Transpiler Pipeline" that accepts a high-level circuit definition (OpenQASM 3.0, 2.0, or JSON) and adapts it to specific architectural constraints (e.g., restricted connectivity). The system will support both Statevector simulation (exact linear algebra for up to 12 qubits) and MPS (Matrix Product States) simulation for low-entanglement circuits scaling to 20+ qubits. The output will include the final state vector, measurement probabilities, classical memory states, and visualized circuit diagrams. The project will \textbf{not} include pulse-level control, quantum error correction (QEC), or direct integration with real hardware APIs beyond OpenQASM string generation. The target users are quantum computing students, researchers, and educators requiring a lightweight, transparent, and educational quantum runtime environment.
+Setting explicit project boundaries kept our development focused on numerical accuracy and compilation correctness within the nine-month Final Year Project timeline.
 
+\textbf{What is in Scope:}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Input Ingestion:} Full parsing of OpenQASM 2.0, OpenQASM 3.0 (including classical variables, \texttt{if} conditionals, and loops), and JSON gate lists.
+    \item \textbf{Circuit Manipulation:} Gate decomposition (Toffoli, controlled-$U$, multi-controlled gates) into elementary gates ($\{H, X, Y, Z, Rx, Ry, Rz, CX, CZ, SWAP\}$).
+    \item \textbf{Transpilation:} Routing across user-defined or pre-set hardware coupling graphs using Greedy BFS and SABRE heuristic lookahead.
+    \item \textbf{Dual Simulation Backends:} Exact statevector simulation for circuits up to 12 qubits (with classical memory registers and mid-circuit collapse) and Matrix Product State (MPS) tensor network simulation for circuits scaling to 20+ qubits when entanglement is bounded.
+    \item \textbf{Noise Simulation:} Kraus operator channels for depolarizing noise, $T_1$ relaxation, $T_2$ dephasing, and asymmetric readout errors.
+    \item \textbf{Interfaces:} A command-line tool, an asynchronous FastAPI REST service, and an interactive Next.js web dashboard.
+\end{itemize}
 
+\textbf{What is out of Scope:}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Pulse-Level Hardware Control:} QVM operates at the logical and gate-level circuit abstraction. It does not synthesize low-level microwave analog pulse envelopes or frequency-shift calibrations.
+    \item \textbf{Active Fault-Tolerant Quantum Error Correction (QEC):} The system does not implement live real-time surface-code syndrome decoding loops.
+    \item \textbf{Direct Proprietary Hardware Submissions:} While QVM exports valid OpenQASM files ready for submission to IBM Quantum or AWS Braket, it intentionally avoids managing remote cloud job queues or enterprise billing credentials.
+\end{itemize}
 
 % --------------------------------
 % 2.5 System Architecture and Modules
@@ -65,9 +89,17 @@ The scope of this project is to develop a desktop-based Quantum Virtual Machine 
 
 \section{System Architecture and Modules}
 
-The QVM follows a strict \textbf{Pipeline Architecture} pattern, ensuring clear separation of concerns and modular extensibility. The system processes quantum programs through six sequential stages: (1) \textbf{Input Layer:} Accepts OpenQASM 3.0, 2.0, or JSON gate lists. (2) \textbf{Parser (Lark):} Generates an Abstract Syntax Tree (AST) and maps it to the internal \texttt{QuantumCircuit} Intermediate Representation (IR). (3) \textbf{Decomposer:} Normalizes high-level gates into a target-compatible native gate set. (4) \textbf{Transpiler:} Routes qubits according to the target hardware topology using Greedy or SABRE routing algorithms. (5) \textbf{Simulators:} Executes the transpiled circuit using either the \texttt{Simulator} (exact statevector evolution) or \texttt{MPSSimulator} (tensor network contraction with SVD-based truncation). (6) \textbf{Output Layer:} Returns measurement probabilities, classical memory states, and visual plots. This modular design allows independent development, testing, and optimization of each component while maintaining a clean data flow from high-level quantum code to executable results.
+The Quantum Virtual Machine is structured as a pipeline of independent, loosely coupled modules. Each module performs a single well-defined transformation on the quantum program:
 
-
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Input & Interface Layer:} Ingests program files via CLI, REST API requests, or web editor interactions.
+    \item \textbf{Parser Module:} Converts raw textual descriptions into a validated Abstract Syntax Tree using Lark formal grammars.
+    \item \textbf{Intermediate Representation (IR):} Normalizes the AST into a \texttt{QuantumCircuit} instance managing gate streams, qubit declarations, and classical memory.
+    \item \textbf{Decomposer Module:} Synthesizes multi-qubit and high-level gates into native elementary primitives.
+    \item \textbf{Transpiler Module:} Resolves topological coupling constraints by mapping logical qubits and inserting SWAP gates via graph algorithms.
+    \item \textbf{Simulation Engines:} Executes physical circuits using either exact statevector array mathematics or tensor-network SVD contractions.
+    \item \textbf{Output & Visualization Layer:} Computes measurement statistics, renders circuit schematics, and formats JSON/ASCII responses.
+\end{enumerate}
 
 % --------------------------------
 % 2.5.1 Module Descriptions
@@ -75,91 +107,89 @@ The QVM follows a strict \textbf{Pipeline Architecture} pattern, ensuring clear 
 
 \subsection{Module 1: Parser Module}
 
-\textbf{Description}
+The Parser Module handles all input ingestion, serving as the gateway to the virtual machine. It accepts circuits written in OpenQASM 2.0 \cite{cross2017qasm}, OpenQASM 3.0 \cite{cross2022qasm3}, or structured JSON.
 
-The Parser Module serves as the entry point for quantum circuit ingestion, accepting programs in OpenQASM 2.0, OpenQASM 3.0, and JSON formats. Built on the Lark parsing toolkit, the module performs lexical analysis to tokenize input strings, syntactic analysis to construct Abstract Syntax Trees (ASTs) following formal grammar specifications, and semantic validation to ensure circuit correctness (valid qubit indices, supported gate types, proper register declarations). The parser handles advanced OpenQASM 3.0 features including classical memory operations, conditional execution, for/while loops, and timing directives. Upon successful parsing, the module generates the internal Intermediate Representation (IR) as a \texttt{QuantumCircuit} object containing structured gate sequences, qubit/classical bit registers, and metadata. Error handling provides detailed diagnostic messages with line numbers and syntax suggestions to guide users in correcting malformed circuits.
+For OpenQASM 3.0, the module relies on the Lark parsing toolkit \cite{lark2023} configured with an EBNF grammar file (\texttt{qasm3.lark}). The parser executes in two passes: the first pass discovers register declarations (qubits and classical bit arrays), while the second pass walks the AST to parse gates, measurement assignments, conditional branches, and loops. If a user provides malformed syntax or references undeclared qubits, the parser catches the error immediately and outputs line numbers with contextual diagnostic suggestions.
 
 \textbf{Functional Requirements:}
-
-\begin{itemize}
-    \item FR-1.1: The system shall parse OpenQASM 2.0 circuits with support for standard gates (H, X, Y, Z, CNOT, CZ, SWAP, Toffoli) and measurement operations.
-    \item FR-1.2: The system shall parse OpenQASM 3.0 circuits including classical memory declarations, conditional statements, and loop constructs.
-    \item FR-1.3: The system shall validate circuit syntax and report errors with line numbers and descriptive messages.
-    \item FR-1.4: The system shall generate an Intermediate Representation (IR) containing all circuit information in a standardized format.
-    \item FR-1.5: The system shall support JSON circuit format for backward compatibility with simple gate list representations.
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FR-1.1:} The system shall parse OpenQASM 2.0 circuits containing standard single- and two-qubit gates, barriers, and measurement directives.
+    \item \textbf{FR-1.2:} The system shall parse OpenQASM 3.0 programs containing classical registers, \texttt{if} conditionals, and loop constructs.
+    \item \textbf{FR-1.3:} The system shall validate circuit syntax and provide descriptive error messages indicating exact line and column numbers upon failure.
+    \item \textbf{FR-1.4:} The system shall construct a standardized \texttt{QuantumCircuit} Intermediate Representation from valid parsed inputs.
+    \item \textbf{FR-1.5:} The system shall accept JSON gate list representations for testing and automated tool integration.
 \end{itemize}
-
-
 
 \subsection{Module 2: Transpiler Module}
 
-\textbf{Description}
+The Transpiler Module adapts hardware-agnostic circuits to the physical connectivity limitations of target quantum processors \cite{cowtan2019}. It takes a logical circuit and a hardware coupling graph as inputs.
 
-The Transpiler Module performs hardware-aware circuit compilation, transforming logical quantum circuits into physically executable programs that respect target hardware constraints. The module accepts a hardware topology specification (linear chain, 2D grid, or custom connectivity graph) and implements sophisticated qubit routing algorithms to satisfy connectivity requirements. The core functionality includes initial qubit placement using heuristic strategies, dynamic SWAP gate insertion to enable non-adjacent qubit interactions, and optional mapping restoration to preserve logical-physical qubit correspondence. The module supports two routing strategies: Greedy BFS for fast compilation with moderate optimization, and SABRE-inspired lookahead heuristics for superior circuit depth reduction (typically 30-40\% improvement). The transpiler integrates with the Decomposer to ensure all gates are expressed in the target's native gate set before routing, producing fully executable circuits ready for simulation or hardware deployment.
+If an operation requires a two-qubit gate between qubits that share no direct physical edge, the transpiler intervenes. It maintains two dynamic mapping tables: forward (logical $\to$ physical) and inverse (physical $\to$ logical). Users can pick between two routing algorithms:
+\begin{enumerate}
+    \item \textbf{Greedy BFS:} Computes the shortest path across the hardware graph using Breadth-First Search and inserts SWAP gates along the path. It runs in milliseconds and is ideal for fast local debugging.
+    \item \textbf{SABRE Routing:} Evaluates future gates in a lookahead queue using a decay-weighted cost heuristic \cite{li2019sabre}. By anticipating upcoming multi-qubit interactions, SABRE reduces unnecessary SWAPs by 30\% to 40\% compared to the greedy baseline.
+\end{enumerate}
 
 \textbf{Functional Requirements:}
-
-\begin{itemize}
-    \item FR-2.1: The system shall accept hardware topology specifications defining qubit connectivity constraints.
-    \item FR-2.2: The system shall implement qubit routing algorithms (Greedy BFS and SABRE) to insert SWAP gates satisfying connectivity requirements.
-    \item FR-2.3: The system shall minimize circuit depth and SWAP gate count through lookahead heuristics and decay mechanisms.
-    \item FR-2.4: The system shall support configurable routing strategies allowing users to select optimization priorities.
-    \item FR-2.5: The system shall provide optional mapping restoration to maintain logical-physical qubit correspondence after transpilation.
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FR-2.1:} The system shall accept hardware coupling graph specifications defining valid adjacent qubit pairs.
+    \item \textbf{FR-2.2:} The system shall implement Greedy BFS routing to route non-adjacent gates via shortest paths.
+    \item \textbf{FR-2.3:} The system shall implement the SABRE lookahead heuristic to minimize total SWAP gate count and circuit depth.
+    \item \textbf{FR-2.4:} The system shall allow users to select their preferred routing strategy and configure lookahead parameters.
+    \item \textbf{FR-2.5:} The system shall provide an optional mapping restoration pass that returns physical qubits to their original logical indices at circuit completion.
 \end{itemize}
-
-
 
 \subsection{Module 3: Simulator Module}
 
-\textbf{Description}
+The Simulator Module provides execution backends to verify and study quantum circuit behavior. Rather than relying on a single engine, QVM incorporates dual simulation approaches:
 
-The Simulator Module provides dual quantum state evolution engines for circuit execution and validation. The Statevector Simulator implements exact quantum mechanics using full state vector representation, supporting circuits up to 12 qubits on standard hardware through NumPy-optimized linear algebra operations. Gate application employs permutation-based indexing for efficient unitary matrix multiplication, achieving near-C performance through vectorized computation. The MPS (Matrix Product State) Simulator extends scalability to 20+ qubits for low-entanglement circuits using tensor network decomposition with SVD-based compression and configurable bond dimension truncation. Both simulators support mid-circuit measurements with probabilistic state collapse, classical memory operations (bit assignment, register manipulation), and conditional gate execution based on classical bit values. The module handles measurement sampling with configurable shot counts, probability distribution computation, and state vector extraction for analysis, providing comprehensive quantum circuit execution capabilities for algorithm development and validation.
-
-\textbf{Functional Requirements:}
-
-\begin{itemize}
-    \item FR-3.1: The system shall simulate quantum circuits using exact statevector evolution for up to 12 qubits.
-    \item FR-3.2: The system shall implement MPS simulation with SVD-based compression for low-entanglement circuits scaling to 20+ qubits.
-    \item FR-3.3: The system shall support mid-circuit measurements with probabilistic state collapse and classical memory updates.
-    \item FR-3.4: The system shall execute conditional gates based on classical bit values enabling hybrid quantum-classical algorithms.
-    \item FR-3.5: The system shall compute measurement probability distributions and support configurable shot-based sampling.
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Statevector Simulator:} Represents the complete quantum state as a complex NumPy array of size $2^n$ \cite{numpy2020}. It optimizes gate execution through multidimensional tensor reshaping and axis permutations, avoiding expensive $2^n \times 2^n$ matrix allocations. It supports projective mid-circuit measurements according to the Born rule, collapsing the statevector and updating classical registers in real time.
+    \item \textbf{Matrix Product State (MPS) Simulator:} Models the quantum state as a 1D tensor train \cite{vidal2003mps}. When a two-qubit gate fires, the engine contracts adjacent rank-3 tensors and performs Singular Value Decomposition (SVD), discarding singular values below a threshold to cap bond dimension $\chi$. This allows simulating 20+ qubits on desktop machines as long as entanglement remains localized.
+    \item \textbf{Kraus Noise Engine:} Applies open-system noise channels (depolarizing, amplitude damping, phase damping, and readout classification confusion) to evaluate how physical imperfections degrade circuit outputs.
 \end{itemize}
 
-
+\textbf{Functional Requirements:}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FR-3.1:} The system shall perform exact statevector simulation for circuits up to 12 qubits on standard desktop hardware.
+    \item \textbf{FR-3.2:} The system shall perform Matrix Product State (MPS) simulation with SVD truncation for low-entanglement circuits up to 20+ qubits.
+    \item \textbf{FR-3.3:} The system shall execute mid-circuit measurements with statevector collapse and write outcomes to classical memory registers.
+    \item \textbf{FR-3.4:} The system shall evaluate classical conditional statements during simulation to support hybrid feedback algorithms.
+    \item \textbf{FR-3.5:} The system shall compute analytic state probabilities and simulate stochastic shot-based sampling with configurable seeds.
+\end{itemize}
 
 \subsection{Module 4: Visualization Module}
 
-\textbf{Description}
+The Visualization Module translates raw numerical statevectors and circuit data structures into intuitive graphical diagrams using Matplotlib \cite{matplotlib2007}.
 
-The Visualization Module generates publication-quality graphical representations of quantum circuits and simulation results using Matplotlib. The circuit diagram renderer produces professional visualizations with proper quantum gate symbols (boxes for single-qubit gates, controlled-gate notation for multi-qubit operations), horizontal qubit lines with clear labeling, measurement indicators, and classical bit wires. The module supports customizable styling including figure dimensions, color schemes, font sizes, and export formats (PNG, PDF, SVG) for integration into presentations and publications. Measurement result visualization includes probability histogram generation with configurable bar colors, axis labels, and statistical annotations. The module handles complex circuits with multiple qubits, classical registers, and conditional operations, automatically adjusting layout for readability. Visualization aids in algorithm debugging by revealing circuit structure, supports educational demonstrations by clarifying quantum operations, and enables result presentation through clear probability distributions.
+The module provides two primary visual representations:
+\begin{enumerate}
+    \item \textbf{Circuit Diagram Renderer:} Plots horizontal qubit wires, labeled gate blocks, multi-qubit control points, target symbols, and classical measurement wires.
+    \item \textbf{Measurement Histogram Plotter:} Displays probability distributions across basis states, filtering out near-zero amplitudes to keep charts readable.
+\end{enumerate}
 
 \textbf{Functional Requirements:}
-
-\begin{itemize}
-    \item FR-4.1: The system shall generate circuit diagrams with proper quantum gate symbols and qubit line representations.
-    \item FR-4.2: The system shall produce probability histograms visualizing measurement outcome distributions.
-    \item FR-4.3: The system shall support customizable styling including colors, fonts, and figure dimensions.
-    \item FR-4.4: The system shall export visualizations to multiple formats (PNG, PDF, SVG) for publication and presentation.
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FR-4.1:} The system shall render graphical circuit diagrams displaying qubit wires, gate symbols, and measurement operations.
+    \item \textbf{FR-4.2:} The system shall generate probability histograms illustrating measurement outcome distributions.
+    \item \textbf{FR-4.3:} The system shall support customizable plot dimensions, color schemes, and output formats (PNG, SVG, PDF).
+    \item \textbf{FR-4.4:} The system shall export rendered visual artifacts to disk for inclusion in documentation and academic reports.
 \end{itemize}
-
-
 
 \subsection{Module 5: CLI and Web API Module}
 
-\textbf{Description}
+This module delivers user interfaces suited for diverse operational needs: automated scripting, web integration, and interactive browser experimentation.
 
-The CLI and Web API Module provides dual user interfaces for QVM access: a command-line interface for local execution and a RESTful web service for remote access. The CLI implements a comprehensive command-line tool with argument parsing for circuit file loading, transpilation configuration (routing strategy selection, topology specification), simulation parameters (seed, shot count, max operations), and output formatting options. The interface includes extensive help documentation, error reporting with actionable suggestions, and progress indicators for long-running operations. The Web API, built on FastAPI, exposes QVM functionality through HTTP endpoints with JSON request/response formatting, automatic OpenAPI documentation generation, and asynchronous request handling for concurrent circuit execution. The accompanying web dashboard provides an interactive interface for circuit composition, parameter configuration, execution monitoring, and result visualization, demonstrating the QVM's capability as a backend service for quantum computing applications and educational platforms.
+The CLI (\texttt{src/qvm/cli.py}) uses Python's \texttt{argparse} to expose compilation flags, routing choices, shot counts, and noise parameters directly from the terminal. The Web API (\texttt{api/app.py}), developed with FastAPI \cite{fastapi2023}, exposes asynchronous HTTP endpoints (\texttt{POST /run}, \texttt{GET /health}, \texttt{GET /circuits}) with automatic JSON schema validation via Pydantic. It connects with a Supabase cloud database to persist user-submitted circuits and query past execution traces.
 
 \textbf{Functional Requirements:}
-
-\begin{itemize}
-    \item FR-5.1: The system shall provide a command-line interface accepting circuit files and configuration parameters.
-    \item FR-5.2: The system shall implement a RESTful web API with JSON request/response formatting for remote circuit execution.
-    \item FR-5.3: The system shall generate automatic API documentation using OpenAPI specifications.
-    \item FR-5.4: The system shall provide an interactive web dashboard for circuit composition and result visualization.
-    \item FR-5.5: The system shall support asynchronous request handling enabling concurrent circuit execution.
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FR-5.1:} The system shall provide a command-line interface supporting file arguments, routing flags, and visualization options.
+    \item \textbf{FR-5.2:} The system shall implement a RESTful web API accepting JSON circuit payloads and returning execution results.
+    \item \textbf{FR-5.3:} The system shall generate interactive OpenAPI documentation for all exposed HTTP endpoints.
+    \item \textbf{FR-5.4:} The system shall provide an interactive web dashboard for circuit editing, preset loading, and result visualization.
+    \item \textbf{FR-5.5:} The system shall execute simulation requests asynchronously without blocking concurrent server operations.
 \end{itemize}
-
 
 % --------------------------------
 % 2.7 Assumptions and Dependencies
@@ -167,24 +197,26 @@ The CLI and Web API Module provides dual user interfaces for QVM access: a comma
 
 \section{Assumptions and Dependencies}
 
-The following assumptions and dependencies guide the system design and operational constraints:
+To ensure realistic expectations during deployment and evaluation, we identified the following operating assumptions and technical dependencies:
 
 \textbf{Assumptions:}
-\begin{itemize}
-    \item The system assumes users have basic knowledge of quantum computing concepts (qubits, gates, superposition) and familiarity with Python programming.
-    \item The system assumes quantum circuits are mathematically valid (unitary operations, proper qubit indexing) and syntactically correct according to OpenQASM specifications.
-    \item The system assumes users have access to standard desktop hardware with at least 8GB RAM for simulating circuits up to 12 qubits (Statevector) or 20+ qubits (MPS for low-entanglement cases).
+\begin{itemize}[leftmargin=*]
+    \item Users have a foundational understanding of quantum concepts (superposition, measurement, basic gate operations) and basic familiarity with the command line or web browsers.
+    \item Input circuits specify mathematically valid unitary gates and non-negative qubit indices.
+    \item The host machine provides at least 4~GB of available RAM for simulating circuits up to 10 qubits, and 8~GB for 12-qubit statevectors.
 \end{itemize}
 
 \textbf{Dependencies:}
-\begin{itemize}
-    \item The system depends on Python 3.10+ and core scientific libraries (NumPy for linear algebra, NetworkX for graph-based topology mapping, Matplotlib for visualization).
-    \item The system depends on the Lark parsing library for OpenQASM 3.0 AST generation and syntax validation.
-    \item The system's interoperability depends on adherence to OpenQASM 2.0 and 3.0 standards for circuit export and compatibility with external quantum platforms (e.g., IBM Quantum).
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Runtime Environment:} Python 3.10 or higher.
+    \item \textbf{Core Libraries:} NumPy $\ge$ 1.24 (linear algebra), Lark $\ge$ 1.1 (parsing), FastAPI $\ge$ 0.100 (API service), Matplotlib $\ge$ 3.7 (plotting), and pytest $\ge$ 7.4 (testing framework).
+    \item \textbf{Standards Adherence:} Adherence to OpenQASM 2.0 and 3.0 specification documents for grammar compliance and circuit interchange.
 \end{itemize}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Chapter Summary}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% --------------------------------
+% 2.8 Chapter Summary
+% --------------------------------
 
-This chapter defined the core problem of hardware fragmentation and vendor lock-in in quantum computing, which prevents code portability across different quantum platforms. The proposed Quantum Virtual Machine (QVM) solution was presented as a middleware layer implementing a three-stage pipeline (Ingestion, Transpilation, Execution) to achieve "Write Once, Run Anywhere" functionality. Five clear business objectives were established to guide system development, focusing on hardware agnosticism, educational transparency, lightweight operation, interoperability, and automation. The system scope was defined to cover desktop-based quantum circuit simulation (10-20 qubits) using Python, with explicit boundaries excluding pulse-level control and quantum error correction. The pipeline architecture was outlined, describing the six-stage modular design from input parsing through simulation to output generation. Finally, key assumptions regarding user knowledge and hardware requirements, along with dependencies on Python libraries and OpenQASM standards, were documented to clarify operational constraints. This chapter provides the problem foundation and conceptual solution framework that will guide the detailed software design presented in the next chapter.
+\section{Chapter Summary}
+
+This chapter laid out the practical bottlenecks we tackle in the Quantum Virtual Machine: bridging the divide between abstract gate sequences and physical coupling limits. We examined why planar coupling graphs force compilers to insert SWAP cascades, and how unoptimized routing compounds gate errors on NISQ devices. We then mapped out QVM's three-stage compilation pipeline, set five verifiable project objectives, scoped the system boundaries, and indexed twenty-five functional requirements across five core subsystems. With these operational constraints established, Chapter 3 formalizes the functional requirements, user classes, and use case model.

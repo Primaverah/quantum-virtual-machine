@@ -5,7 +5,7 @@
 This appendix presents the key source code files that implement the core functionality of the Quantum Virtual Machine (QVM) system. The complete source code repository is available at:
 
 \begin{center}
-\textbf{\url{https://github.com/qayum/quantum-virtual-machine}}
+\textbf{\url{https://github.com/qayumXD/quantum-virtual-machine}}
 \end{center}
 
 \vspace{0.5cm}
@@ -15,7 +15,7 @@ This appendix presents the key source code files that implement the core functio
 \item \textbf{Student 1:} Muhammad Abdul Qayyoum (CIIT/SP23-BCS-033/VHR)
 \item \textbf{Student 2:} Ahmad Faraz (CIIT/SP23-BCS-007/VHR)
 \item \textbf{Supervisor:} Assistant Prof. Mr. Farhad Mubashir
-\item \textbf{Repository:} \url{https://github.com/qayum/quantum-virtual-machine}
+\item \textbf{Repository:} \url{https://github.com/qayumXD/quantum-virtual-machine}
 \item \textbf{Branch:} main
 \item \textbf{Language:} Python 3.10+
 \item \textbf{Dependencies:} NumPy, Matplotlib, Lark, FastAPI
@@ -23,13 +23,13 @@ This appendix presents the key source code files that implement the core functio
 
 \vspace{0.5cm}
 
-The following sections present eight key source files that demonstrate the system's architecture and implementation. These files represent the core modules: Intermediate Representation, Parsing, Simulation, Transpilation, User Interface, Hardware Architecture, and Gate Decomposition.
+The following sections present key source files that demonstrate the system's architecture and implementation. These files represent the core modules: Intermediate Representation, Parsing, Simulation, Transpilation, User Interface, Hardware Architecture, and Gate Decomposition.
 
 \clearpage
 
-\subsection{File 1: Intermediate Representation (ir.py)}
+\section{File 1: Intermediate Representation (ir.py)}
 
-\textbf{Purpose:} Defines the QuantumCircuit class that serves as the unified internal representation for quantum circuits across all input formats.
+\textbf{Purpose:} Implements the \texttt{QuantumCircuit} class, providing the unified intermediate representation that all parsers, transpilers, and simulators operate upon.
 
 \textbf{Key Features:}
 \begin{itemize}
@@ -127,7 +127,7 @@ class QuantumCircuit:
 
 \clearpage
 
-\subsection{File 2: Hardware Architecture (architecture.py)}
+\section{File 2: Hardware Architecture (architecture.py)}
 
 \textbf{Purpose:} Defines data structures for representing target quantum hardware topologies and connectivity constraints.
 
@@ -225,7 +225,7 @@ def get_fully_connected_architecture(num_qubits: int) -> TargetArchitecture:
 
 \clearpage
 
-\subsection{File 3: Gate Decomposer (decomposer.py)}
+\section{File 3: Gate Decomposer (decomposer.py)}
 
 \textbf{Purpose:} Decomposes complex quantum gates into sequences of simpler native gates supported by the target hardware.
 
@@ -372,10 +372,10 @@ quantum-virtual-machine/
 
 \textbf{Setup Instructions:}
 \begin{enumerate}
-\item Clone repository: \texttt{git clone https://github.com/qayum/quantum-virtual-machine.git}
-\item Install dependencies: \texttt{pip install -r requirements.txt}
-\item Run CLI: \texttt{python -m src.qvm.cli examples/bell\_state.qasm}
-\item Run Web Server: \texttt{python -m src.qvm.server}
+\item Clone repository: \texttt{git clone https://github.com/qayumXD/quantum-virtual-machine.git}
+\item Install package: \texttt{pip install -e .} (or install from PyPI: \texttt{pip install quantum-virtual-machine})
+\item Run CLI: \texttt{qvm examples/bell\_state.qasm} or \texttt{python -m qvm.cli --help}
+\item Run Web API Server: \texttt{python -m qvm.server} or \texttt{uvicorn api.app:app --port 8000}
 \item Run Tests: \texttt{pytest tests/}
 \end{enumerate}
 

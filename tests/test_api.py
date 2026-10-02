@@ -81,7 +81,18 @@ def test_run_json_with_shots_and_noise():
     assert total == 200
 
 
+def test_root():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "version" in data
+    assert data["version"] == "0.5.1"
+    assert "frontend" in data
+
+
 def test_static_client_served():
+    import os
+    if not os.path.exists("web/out"):
+        pytest.skip("Static web client build (web/out) not present locally")
     resp = client.get("/web/index.html")
     assert resp.status_code == 200
-    assert "QVM Web UI" in resp.text

@@ -1,18 +1,18 @@
 \chapter{Requirement Analysis}
 
 \section{Introduction}
-This chapter presents a comprehensive analysis of the requirements for the Quantum Virtual Machine (QVM) system. The requirements were gathered through a combination of literature review, analysis of existing quantum computing frameworks, and iterative prototyping. The chapter defines the functional and non-functional requirements that guided the system's design and implementation, ensuring that the QVM achieves its goal of providing a hardware-agnostic quantum execution runtime.
+Establishing clear functional and operational requirements was critical before writing compiler and simulation logic. Quantum software combines mathematical abstractions (such as unitary matrices and statevector collapse) with concrete software engineering concerns (such as grammar parsing, graph traversal, and memory caching). This chapter details the technical requirements and stakeholder needs gathered during the development of the Quantum Virtual Machine (QVM). These specifications ensure that the resulting runtime achieves true hardware-agnostic circuit execution while remaining lightweight and accessible for university-level computing education.
 
 \section{Requirement Elicitation Techniques}
-The requirements for the QVM were elicited using multiple complementary techniques to ensure comprehensive coverage of system needs:
+We gathered requirements through four hands-on techniques rather than relying solely on high-level surveys:
 
-\textbf{Literature Review:} Extensive analysis of academic papers and technical documentation from major quantum computing frameworks (Qiskit, Cirq, ProjectQ) to identify industry standards and best practices for quantum compilation and simulation.
+\textbf{Direct Framework Auditing:} We systematically inspected existing quantum development platforms (principally Qiskit, Cirq, and ProjectQ). We analyzed how each framework handles circuit data structures, AST generation, and qubit routing. We noted specific pain points: deep installation dependencies, frequent deprecation of execution APIs, and the lack of straightforward inspection into intermediate transpilation passes.
 
-\textbf{Comparative Analysis:} Systematic comparison of existing quantum SDKs to identify gaps in portability, educational accessibility, and hardware abstraction that the QVM aims to address.
+\textbf{Student Lab Observations:} By observing how computer science students at COMSATS interacted with quantum computing assignments, we identified common hurdles. Students frequently struggled with understanding why two-qubit gates fail on non-adjacent qubits, what SWAP routing physically entails, and how to verify small algorithms without dealing with remote cloud queues and API tokens.
 
-\textbf{Prototyping and Iteration:} Incremental development approach where initial prototypes revealed technical constraints and user needs, leading to refined requirements for classical memory integration, control flow support, and transpilation strategies.
+\textbf{Iterative Prototyping:} We built exploratory prototypes for both statevector and Matrix Product State simulations. These early experiments revealed concrete technical boundaries: statevector simulation scales cleanly up to 12 qubits before exhausting standard laptop RAM, while tensor-network MPS simulation requires strict tracking of singular-value truncation to avoid silent fidelity degradation.
 
-\textbf{Domain Expert Consultation:} Regular discussions with the FYP supervisor and review of quantum computing research to validate technical requirements and ensure alignment with quantum computing principles.
+\textbf{Faculty and Supervisor Consultation:} Regular weekly sessions with our project supervisor, Assistant Prof. Mr. Farhad Mubashir, guided our architectural scope. These reviews helped refine our focus toward educational transparency, standardized OpenQASM 3.0 parsing, and heuristic lookahead routing.
 
 \section{User Classes and Characteristics}
 
@@ -35,17 +35,90 @@ System Integrators & Users integrating QVM with other tools & Software engineeri
 \end{table}
 
 \section{System Overview}
-The Quantum Virtual Machine is a comprehensive quantum circuit execution platform that implements a complete compilation and simulation pipeline. The system accepts quantum programs in multiple formats (OpenQASM 2.0, OpenQASM 3.0, JSON), transforms them through a hardware-agnostic intermediate representation, applies topology-aware transpilation, and executes them using either exact statevector simulation or efficient tensor network methods. The system provides three user interfaces (CLI, Web API, Web GUI) to accommodate different usage scenarios, from automated scripting to interactive exploration. The architecture emphasizes modularity, allowing each component (parser, transpiler, simulator) to be independently tested and upgraded.
+The Quantum Virtual Machine provides an end-to-end execution pipeline from circuit definition to state measurement. It ingests quantum circuits in OpenQASM 2.0, OpenQASM 3.0, and JSON, translates them into an internal hardware-independent Intermediate Representation, maps logical qubits to physical coupling graphs via Greedy or SABRE routing, and simulates quantum state evolution. Depending on circuit size and entanglement profile, execution routes to either an exact statevector simulator or an MPS tensor network engine. Users interact with the pipeline via a terminal CLI, an asynchronous FastAPI service, or an interactive web dashboard.
 
 \section{Use Case Model}
-This section defines the primary interactions between the actors and the Quantum Virtual Machine system, capturing the functional requirements from a user-centric perspective.
+The following use cases define how each stakeholder interacts with QVM, establishing functional requirements from a practical user perspective.
 
 \subsection{Combined Use Case Diagram}
 The use case diagram in Figure \ref{fig:use_case_diagram} provides a high-level visual overview of the system's functionality and all actors involved.
 
-\begin{figure}[H]
+\begin{figure}[!htb]
 \centering
-\includegraphics[width=0.9\textwidth,height=0.8\textheight,keepaspectratio]{../uml/QVM_Use_Case_Diagram.pdf}
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+    actor/.style={rectangle, draw=blue!80!black, fill=blue!10, rounded corners=3pt, minimum width=2.6cm, minimum height=0.9cm, font=\small\bfseries, align=center},
+    uc/.style={ellipse, draw=black!80, fill=white, line width=0.8pt, font=\scriptsize, align=center, inner sep=3pt, minimum width=2.8cm, minimum height=0.8cm},
+    system/.style={rectangle, draw=blue!70!black, line width=1pt, rounded corners=6pt, fill=blue!2, inner sep=12pt},
+    arrow/.style={-{Stealth[scale=0.85]}, line width=0.8pt, draw=black!75},
+    darrow/.style={-{Stealth[scale=0.85]}, dashed, line width=0.8pt, draw=blue!75!black}
+]
+
+% Boundary Box
+\node[system, minimum width=11.5cm, minimum height=14.5cm] (sys) at (0, 0) {};
+\node[font=\bfseries\small, text=blue!90!black, anchor=north west] at (sys.north west) {Quantum Virtual Machine (QVM) System Boundary};
+
+% Left Actors
+\node[actor] (dev) at (-7.5, 4.2) {Quantum Algorithm\\Developer};
+\node[actor] (edu) at (-7.5, -3.8) {Student /\\Educator};
+
+% Right Actors
+\node[actor] (res) at (7.5, 4.2) {Quantum\\Researcher};
+\node[actor] (sysint) at (7.5, -3.8) {System\\Integrator};
+
+% Subsystem Clusters / Use Cases inside Boundary
+% 1. Circuit Ingestion
+\node[uc] (uc11) at (-2.8, 5.2) {UC-1.1: Load \& Parse\\Circuit (QASM / JSON)};
+\node[uc] (uc31) at (2.8, 5.2) {UC-3.1: Export Circuit\\to OpenQASM 2.0/3.0};
+
+% 2. Transpilation & Routing
+\node[uc] (uc12) at (-2.8, 2.8) {UC-1.2: Transpile Circuit\\for Target Topology};
+\node[uc] (uc21) at (2.8, 3.4) {UC-2.1: Configure Hardware\\Coupling Graph};
+\node[uc] (uc22) at (2.8, 2.0) {UC-2.2: Select Routing\\(Greedy BFS / SABRE)};
+
+% 3. Execution Engines
+\node[uc] (uc13) at (-2.8, -0.2) {UC-1.3: Execute Circuit\\(Statevector Engine)};
+\node[uc] (uc23) at (2.8, -0.2) {UC-2.3: Execute MPS Engine\\(Tensor Train / SVD)};
+
+% 4. Visualization & Analysis
+\node[uc] (uc14) at (-2.8, -2.8) {UC-1.4: Visualize Probabilities\\\& Circuit Wire Diagram};
+\node[uc] (uc41) at (2.8, -2.8) {UC-4.1: Inspect Gate Counts\\\& SWAP Overheads};
+
+% 5. Interfaces & Platform Integration
+\node[uc] (uc15) at (-2.8, -5.2) {UC-1.5: Execute via\\Command-Line (CLI)};
+\node[uc] (uc33) at (0, -6.0) {UC-3.3: Interactive Experimentation\\via Web GUI Dashboard};
+\node[uc] (uc32) at (2.8, -5.2) {UC-3.2: Programmatic Execution\\via FastAPI REST API};
+
+% Connections: Developer
+\draw[arrow] (dev) -- (uc11);
+\draw[arrow] (dev) -- (uc12);
+\draw[arrow] (dev) -- (uc13);
+\draw[arrow] (dev) -- (uc15);
+
+% Connections: Educator / Student
+\draw[arrow] (edu) -- (uc14);
+\draw[arrow] (edu) -- (uc33);
+\draw[arrow] (edu) |- (uc11);
+
+% Connections: Researcher
+\draw[arrow] (res) -- (uc21);
+\draw[arrow] (res) -- (uc22);
+\draw[arrow] (res) -- (uc23);
+\draw[arrow] (res) -- (uc41);
+
+% Connections: System Integrator
+\draw[arrow] (sysint) -- (uc31);
+\draw[arrow] (sysint) -- (uc32);
+
+% Inter-usecase includes/extends
+\draw[darrow] (uc12) -- node[above, font=\tiny]{$\ll$include$\gg$} (uc11);
+\draw[darrow] (uc12) -- node[above, font=\tiny]{$\ll$extend$\gg$} (uc21);
+\draw[darrow] (uc12) -- node[above, font=\tiny]{$\ll$extend$\gg$} (uc22);
+\draw[darrow] (uc13) -- node[above, font=\tiny]{$\ll$include$\gg$} (uc14);
+\draw[darrow] (uc23) -- node[above, font=\tiny]{$\ll$include$\gg$} (uc41);
+
+\end{tikzpicture}%
+}
 \caption{Combined Use Case Diagram for Quantum Virtual Machine}
 \label{fig:use_case_diagram}
 \end{figure}
@@ -462,7 +535,7 @@ FR-6.2 & The system shall support CLI flags for transpilation (--transpile, --ro
 \hline
 FR-6.3 & The system shall support CLI flags for simulation (--simulator, --shots, --seed) \\
 \hline
-FR-6.4 & The system shall provide a REST API with POST /execute endpoint \\
+FR-6.4 & The system shall provide a REST API with POST /run execution endpoint \\
 \hline
 FR-6.5 & The system shall accept JSON circuit definitions via API \\
 \hline
@@ -479,7 +552,7 @@ FR-6.9 & The system shall provide example circuits in web GUI \\
 
 \section{Non-Functional Requirements}
 
-Non-functional requirements define the quality attributes and constraints that the QVM system must satisfy. These requirements ensure that the system not only provides the correct functionality but also meets standards for performance, reliability, usability, portability, maintainability, and security. The following subsections detail the specific non-functional requirements across these six quality dimensions.
+Non-functional requirements define the quality attributes and operational limits that govern QVM. While functional requirements establish what transformations the virtual machine executes, non-functional criteria fix concrete boundaries for simulation latency, memory consumption, numerical stability, user ergonomics, and portability. The following subsections detail these constraints across six core engineering dimensions.
 
 \subsection{Performance Requirements}
 
@@ -540,7 +613,7 @@ Usability requirements specify the ease of use and learnability of the system fo
 \hline
 \textbf{Req. ID} & \textbf{Description} \\
 \hline
-NFR-3.1 & The system shall provide comprehensive documentation with usage examples \\
+NFR-3.1 & The system shall provide structured reference documentation with runnable usage examples \\
 \hline
 NFR-3.2 & The system shall provide clear CLI help messages with --help flag \\
 \hline
@@ -631,9 +704,9 @@ The system provides three user interfaces:
 
 \textbf{Command-Line Interface (CLI):} A terminal-based interface accepting file paths and command-line flags. Supports batch processing and scripting. Displays text-based output with optional visualization windows.
 
-\textbf{Web API:} A RESTful HTTP API built with FastAPI. Accepts JSON POST requests at /execute endpoint. Returns JSON responses with statevector, probabilities, and execution metadata. Supports CORS for cross-origin requests.
+\textbf{Web API:} A RESTful HTTP API built with FastAPI. Accepts JSON and QASM POST requests at the \texttt{/run} execution endpoint, alongside health monitoring (\texttt{/health}) and cloud library management (\texttt{/circuits}, \texttt{/history}) backed by Supabase. Returns JSON responses with statevector, probabilities, measurement shot counts, and execution metadata. Supports CORS for cross-origin requests.
 
-\textbf{Web GUI:} A browser-based dashboard with circuit editor, execution controls, and result visualization. Built with HTML/CSS/JavaScript. Communicates with backend via REST API. Displays circuit diagrams and probability histograms inline.
+\textbf{Web GUI:} A modern web dashboard built with Next.js 16, React 19, TypeScript, and Tailwind CSS 4. Features interactive circuit composition, real-time transpilation and noise parameter controls, SVG/canvas visualizations, and integrated documentation viewing. Deployed on Vercel and supports offline static exports.
 
 \subsection{Hardware Interfaces}
 The system runs on standard computing hardware with the following minimum specifications:
@@ -691,5 +764,5 @@ BO-5: Flexibility & FR-2.3, FR-2.5, FR-2.6, FR-4.7, FR-4.8 & UC-1.3, UC-1.4 \\
 \end{table}
 \FloatBarrier
 
-\section{Summary}
-This chapter has presented a comprehensive analysis of the Quantum Virtual Machine requirements, covering functional requirements across six major modules (Parsing, IR, Transpilation, Simulation, Visualization, Interfaces) and non-functional requirements across six quality attributes (Performance, Reliability, Usability, Portability, Maintainability, Security). The requirements were elicited through literature review, comparative analysis, and iterative prototyping. Ten detailed use cases were documented, covering the primary user interactions with the system, with individual use case diagrams provided for each of the four user classes: Quantum Algorithm Developer, Student/Educator, Researcher, and System Integrator. The requirement traceability matrix demonstrates clear alignment between business objectives and functional requirements. These requirements guided the system design and implementation, ensuring that the QVM achieves its goal of providing a hardware-agnostic, educational, and lightweight quantum execution runtime.
+\section{Chapter Summary}
+This chapter structured the requirements governing the Quantum Virtual Machine. We established four distinct user classes and mapped their interactions across ten concrete use cases and actor diagrams. We specified functional requirements across all six compiler and simulator modules, and established non-functional bounds covering simulation throughput, numerical stability, interface response times, and input validation. Finally, the traceability matrix linked each business objective directly to verifiable requirements and use case flows. With these behavioral and performance specifications locked down, Chapter 4 transitions into the system's architectural blueprint and detailed design.

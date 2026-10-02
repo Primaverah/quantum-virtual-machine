@@ -18,6 +18,7 @@
 \usepackage{ragged2e}
 \usepackage{hyperref}
 \usepackage{tikz}
+\usetikzlibrary{shapes, shapes.geometric, shapes.multipart, arrows.meta, positioning, calc, fit, backgrounds, decorations.pathreplacing, shadows, matrix}
 \usepackage{dashrule}
 \usepackage{xcolor}
 \usepackage{graphicx}
@@ -130,6 +131,8 @@
 \input{ch_5_implementation}
 \input{ch_6_testing}
 \input{ch_7_conclusion}
+\clearpage
+\addcontentsline{toc}{chapter}{References}
 \nocite{*}
 \bibliographystyle{IEEEtran}
 \bibliography{ref}
@@ -144,28 +147,19 @@
 \clearpage
 \appendix
 
-% Main Appendices Title (NO page break after this)
-\chapter*{Appendices}
-\addcontentsline{toc}{chapter}{Appendices}
-
-% Remove extra vertical space
-\vspace{-0.1em}
-
-% Appendix A (no page break before)
-\section*{Appendix A - Turnitin Similarity Report}
-\addcontentsline{toc}{section}{Appendix A – Turnitin Similarity Report}
+% Appendix A
+\chapter{Turnitin Similarity Report}
+\label{app:turnitin}
 \input{ch_8_plagiarismreport}
 
 % Appendix B
-\clearpage
-\section*{Appendix B - AI Writing Detection Report}
-\addcontentsline{toc}{section}{Appendix B – AI Writing Detection Report}
+\chapter{AI Writing Detection Report}
+\label{app:ai_report}
 \input{ch_8.1_AI_report}
 
-% Source Code
-\clearpage
-\section*{Appendix C – Source Code}
-\addcontentsline{toc}{section}{Appendix C – Source Code}
+% Appendix C
+\chapter{Source Code Repository}
+\label{app:source_code}
 \input{ch_9_appendix_source_code}
 
 \end{document}
