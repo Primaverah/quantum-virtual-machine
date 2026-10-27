@@ -55,9 +55,11 @@ export default function CodeBlock({ inline, className, children }: CodeBlockProp
   const [copied, setCopied] = useState(false);
   const match = /language-(\w+)/.exec(className || '');
   const language = match ? match[1].toLowerCase() : '';
-  const rawCode = String(children || '').replace(/\n$/, '');
+  const rawString = String(children || '');
+  const isInline = inline ?? (!className && !rawString.includes('\n'));
+  const rawCode = rawString.replace(/\n$/, '');
 
-  if (inline) {
+  if (isInline) {
     return (
       <code className="bg-bg-panel px-1.5 py-0.5 rounded font-mono text-sm border border-border-color text-accent">
         {children}

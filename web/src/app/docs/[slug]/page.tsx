@@ -25,7 +25,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   let content = "# Document Not Found\n\nThe requested documentation article could not be located.";
   
   if (fs.existsSync(filePath)) {
-    content = fs.readFileSync(filePath, 'utf8');
+    content = fs.readFileSync(filePath, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, '');
   }
 
   const cleanTitle = slug.replace(/^\d+_/, '').replace(/_/g, ' ');
@@ -63,6 +63,9 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={[rehypeKatex]}
             components={{
+              pre({ children }: any) {
+                return <>{children}</>;
+              },
               code({ node, inline, className, children, ...props }: any) {
                 return (
                   <CodeBlock inline={inline} className={className}>
