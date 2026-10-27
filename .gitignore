@@ -61,6 +61,64 @@ backups/
 # Ignore the external project in week1
 week1/
 
+# Academic / University FYP LaTeX, Standalone Reports, and Resources (local only)
+docs/fyp_latex/
+docs/standalone_docs/
+docs/presentation/
+docs/uml/
+docs/ScreenShots/
+docs/resources/
+docs/steps/
+docs/FYP Latex Templete.zip
+docs/ScopeDocumentV1.md
+docs/scopeDocumentV2.docx
+docs/backup_latex.ps1
+docs/backup_latex.sh
+docs/fyp_latex_execution_plan.md
+docs/fyp_latex_preparation_analysis.md
+docs/test_latex.*
+docs/test_plantuml.*
+docs/CURRENT_STATUS.md
+docs/FORMATTING_FIXES_COMPLETE.md
+docs/NEXT_SESSION.md
+docs/PHASE*_COMPLETE.md
+docs/PHASE*_PROGRESS.md
+docs/phase*_progress.md
+docs/QUICK_COMMANDS.md
+docs/READY_TO_TEST.md
+docs/REPOSITORY_STATUS.md
+docs/REVIEW_CHECKLIST.md
+docs/SESSION_SUMMARY*.md
+docs/session_*.md
+docs/SOURCE_CODE_SELECTION.md
+docs/TOOL_TESTING_*.md
+docs/WEEK*_COMPLETE.md
+docs/reports/final_project_report.md
+docs/reports/initial_test_report.md
+docs/reports/optimization_report.md
+docs/reports/project_status_report_*.md
+docs/reports/status_update_*.md
+docs/reports/test_results_*.md
+docs/reports/transpiler_fix_proposal_report.md
+docs/reports/visualization_report.md
+.tools/
+scripts/generate_report_figures.py
+
+# Local scratch, agent logs, and legacy duplicate docs
+.agents/
+obsidian-docs/
+applying/
+quantum-virtual-machine.zip
+qvm_study_guide.md
+gemini_output.txt
+CODE_EXAMPLES_AND_EXPLANATIONS.md
+COMPLETE_USAGE_GUIDE.md
+DOCUMENTATION_INDEX.txt
+PROJECT.md
+QUICK_REFERENCE.md
+README_USAGE_SUMMARY.md
+START_HERE.md
+
 # Requirements files (if we want to manage them separately or regenerate)
 # requirements.txt
 # src/requirements.txt
